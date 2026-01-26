@@ -1,0 +1,16 @@
+{
+    "mcpServers": {
+        "outris-identity": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "mcp-remote",
+                "https://mcp-server.outris.com/sse",
+                "--transport",
+                "sse-only",
+                "--header",
+                "Authorization=Bearer YOUR_API_KEY"
+            ]
+        }
+    }
+}
