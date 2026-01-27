@@ -175,16 +175,16 @@ async def list_mcp_accounts(
         # Get usage counts
         usage_today = await Database.fetchval(
             """
-            SELECT COUNT(*) FROM mcp.tool_executions 
-            WHERE mcp_account_id = $1 AND created_at > CURRENT_DATE
+            SELECT COUNT(*) FROM mcp.user_tool_calls 
+            WHERE user_account_id = $1 AND created_at > CURRENT_DATE
             """, 
             account_id
         ) or 0
         
         usage_month = await Database.fetchval(
             """
-            SELECT COUNT(*) FROM mcp.tool_executions 
-            WHERE mcp_account_id = $1 AND created_at > DATE_TRUNC('month', CURRENT_DATE)
+            SELECT COUNT(*) FROM mcp.user_tool_calls 
+            WHERE user_account_id = $1 AND created_at > DATE_TRUNC('month', CURRENT_DATE)
             """, 
             account_id
         ) or 0
@@ -215,7 +215,7 @@ async def get_analytics(_ = Depends(verify_admin)):
     
     # Usage Today
     total_calls_today = await Database.fetchval(
-        "SELECT COUNT(*) FROM mcp.tool_executions WHERE created_at > CURRENT_DATE"
+        "SELECT COUNT(*) FROM mcp.user_tool_calls WHERE created_at > CURRENT_DATE"
     ) or 0
     
     # Credits used requires parsing/summing if not stored directly. 
@@ -225,18 +225,18 @@ async def get_analytics(_ = Depends(verify_admin)):
     # I'll check if credits_cost column exists using '0' fallback.
     try:
         credits_today = await Database.fetchval(
-            "SELECT SUM(credits_cost) FROM mcp.tool_executions WHERE created_at > CURRENT_DATE"
+            "SELECT SUM(credits_cost) FROM mcp.user_tool_calls WHERE created_at > CURRENT_DATE"
         )
     except Exception:
         credits_today = total_calls_today # Fallback
         
     # Usage Month
     total_calls_month = await Database.fetchval(
-        "SELECT COUNT(*) FROM mcp.tool_executions WHERE created_at > DATE_TRUNC('month', CURRENT_DATE)"
+        "SELECT COUNT(*) FROM mcp.user_tool_calls WHERE created_at > DATE_TRUNC('month', CURRENT_DATE)"
     ) or 0
     try:
         credits_month = await Database.fetchval(
-            "SELECT SUM(credits_cost) FROM mcp.tool_executions WHERE created_at > DATE_TRUNC('month', CURRENT_DATE)"
+            "SELECT SUM(credits_cost) FROM mcp.user_tool_calls WHERE created_at > DATE_TRUNC('month', CURRENT_DATE)"
         )
     except:
         credits_month = total_calls_month
@@ -245,7 +245,7 @@ async def get_analytics(_ = Depends(verify_admin)):
     top_tools_rows = await Database.fetch(
         """
         SELECT tool_name as tool, COUNT(*) as calls, SUM(COALESCE(credits_cost, 1)) as credits
-        FROM mcp.tool_executions
+        FROM mcp.user_tool_calls
         WHERE created_at > DATE_TRUNC('month', CURRENT_DATE)
         GROUP BY tool_name
         ORDER BY calls DESC
@@ -258,8 +258,8 @@ async def get_analytics(_ = Depends(verify_admin)):
     top_users_rows = await Database.fetch(
         """
         SELECT u.user_email as email, u.credits_tier as tier, COUNT(t.id) as calls, SUM(COALESCE(t.credits_cost, 1)) as credits
-        FROM mcp.tool_executions t
-        JOIN mcp.user_accounts u ON t.mcp_account_id = u.id
+        FROM mcp.user_tool_calls t
+        JOIN mcp.user_accounts u ON t.user_account_id = u.id
         WHERE t.created_at > DATE_TRUNC('month', CURRENT_DATE)
         GROUP BY u.user_email, u.credits_tier
         ORDER BY calls DESC
@@ -294,7 +294,7 @@ async def get_tool_usage(days: int = 30, _ = Depends(verify_admin)):
             COUNT(*) FILTER (WHERE success = false) as failed_calls,
             SUM(COALESCE(credits_cost, 1)) as total_credits_consumed,
             AVG(latency_ms) as avg_latency_ms
-        FROM mcp.tool_executions
+        FROM mcp.user_tool_calls
         WHERE created_at > CURRENT_DATE - INTERVAL '1 day' * $1
         GROUP BY tool_name
         ORDER BY total_calls DESC
