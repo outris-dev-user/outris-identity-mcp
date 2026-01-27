@@ -33,6 +33,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+from datetime import date, datetime
+
+class CustomJSONEncoder(json.JSONEncoder):
+    """JSON encoder that handles datetime objects."""
+    def default(self, obj):
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        return super().default(obj)
+
 settings = get_settings()
 
 # Import tools to register them
@@ -357,11 +366,23 @@ async def streamable_http_transport(
                     arguments=arguments,
                     account_id=account.id
                 )
+                # Format result as MCP CallToolResult
+                # content: (TextContent | ImageContent | EmbeddedResource)[]
+                mcp_result = {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(result, cls=CustomJSONEncoder)
+                        }
+                    ],
+                    "isError": False
+                }
+
                 logger.info(f"[HTTP] {tool_name} executed successfully in {execution_time:.0f}ms")
                 return JSONResponse({
                     "jsonrpc": "2.0",
                     "id": request_id,
-                    "result": result
+                    "result": mcp_result
                 })
             except ValueError as e:
                 logger.error(f"[HTTP] Validation error: {e}")
