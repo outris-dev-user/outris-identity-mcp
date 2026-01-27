@@ -133,6 +133,21 @@ async def list_tools():
 # Streamable HTTP Transport (NEW - Primary Transport)
 # ============================================================================
 
+@app.get("/http")
+async def streamable_http_discovery():
+    """
+    Discovery/Probe endpoint for Streamable HTTP.
+    
+    Some clients (like mcp-remote) may probe the endpoint with GET 
+    to verify it exists and is accessible.
+    """
+    return {
+        "status": "active",
+        "transport": "streamable-http",
+        "message": "Use POST requests for JSON-RPC tool execution."
+    }
+
+
 @app.post("/http")
 async def streamable_http_transport(
     request: Request,
