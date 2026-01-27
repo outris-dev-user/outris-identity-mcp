@@ -356,3 +356,87 @@ async def add_credits_to_account(
         "balance_after": current_balance + body.amount,
         "reason": body.reason
     }
+
+
+# ============================================================================
+# Missing History Endpoints (Added Fix)
+# ============================================================================
+
+class CreditHistoryItem(BaseModel):
+    id: int
+    amount: int
+    balance_before: int
+    balance_after: int
+    transaction_type: str
+    reference_type: Optional[str]
+    description: Optional[str]
+    created_at: datetime
+
+class AccountToolCall(BaseModel):
+    request_id: str
+    tool_name: str
+    credits_cost: int
+    success: bool
+    is_backend_error: bool
+    error_code: Optional[str]
+    latency_ms: Optional[float]
+    created_at: datetime
+
+
+@router.get("/mcp/accounts/{account_id}/credit-history", response_model=List[CreditHistoryItem])
+async def get_account_credit_history(
+    account_id: int,
+    limit: int = 50,
+    offset: int = 0,
+    _ = Depends(verify_admin)
+):
+    """Get credit transaction history for a specific account."""
+    query = """
+        SELECT 
+            id, amount, balance_before, balance_after, 
+            transaction_type, reference_type, description, created_at
+        FROM mcp.user_credit_transactions
+        WHERE user_account_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+    """
+    
+    rows = await Database.fetch(query, account_id, limit, offset)
+    return [dict(row) for row in rows]
+
+
+@router.get("/mcp/accounts/{account_id}/tool-calls", response_model=List[AccountToolCall])
+async def get_account_tool_calls(
+    account_id: int,
+    days: int = 30,
+    limit: int = 50,
+    offset: int = 0,
+    _ = Depends(verify_admin)
+):
+    """Get tool usage history for a specific account."""
+    query = """
+        SELECT 
+            request_id, tool_name, credits_cost, success, 
+            is_backend_error, error_code, latency_ms, created_at
+        FROM mcp.user_tool_calls
+        WHERE user_account_id = $1
+          AND created_at > CURRENT_DATE - INTERVAL '1 day' * $2
+        ORDER BY created_at DESC
+        LIMIT $3 OFFSET $4
+    """
+    
+    rows = await Database.fetch(query, account_id, days, limit, offset)
+    
+    results = []
+    for row in rows:
+        results.append({
+            "request_id": str(row["request_id"]),
+            "tool_name": row["tool_name"],
+            "credits_cost": row["credits_cost"] or 0,
+            "success": row["success"],
+            "is_backend_error": row["is_backend_error"] or False,
+            "error_code": row["error_code"],
+            "latency_ms": row["latency_ms"],
+            "created_at": row["created_at"]
+        })
+    return results
