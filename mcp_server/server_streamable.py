@@ -118,7 +118,8 @@ async def list_tools():
     for name, tool_def in ToolRegistry.get_all().items():
         tools[name] = {
             "description": tool_def.description,
-            "input_schema": tool_def.inputSchema,
+            "credits": tool_def.credits,
+            "category": tool_def.category,
             "requires_auth": name not in ["platform_check", "check_whatsapp"]
         }
     return {
