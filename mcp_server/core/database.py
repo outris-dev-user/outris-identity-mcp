@@ -25,6 +25,11 @@ class Database:
         
         settings = get_settings()
         
+        # Skip database connection if DATABASE_URL is not set
+        if not settings.database_url:
+            logger.info("DATABASE_URL not configured - skipping database connection")
+            return
+        
         try:
             cls.pool = await asyncpg.create_pool(
                 dsn=settings.database_url,
@@ -36,7 +41,8 @@ class Database:
             logger.info("Database connection pool created")
         except Exception as e:
             logger.error(f"Failed to create database pool: {e}")
-            raise
+            # Don't raise - allow server to run without DB for local development
+            logger.warning("Continuing without database connection")
     
     @classmethod
     async def disconnect(cls) -> None:
@@ -49,12 +55,18 @@ class Database:
     @classmethod
     async def execute(cls, query: str, *args) -> str:
         """Execute a query and return status."""
+        if cls.pool is None:
+            logger.warning("Database pool not available - skipping query")
+            return "no_op"
         async with cls.pool.acquire() as conn:
             return await conn.execute(query, *args)
     
     @classmethod
     async def fetch(cls, query: str, *args) -> list:
         """Fetch multiple rows."""
+        if cls.pool is None:
+            logger.warning("Database pool not available - returning empty list")
+            return []
         async with cls.pool.acquire() as conn:
             return await conn.fetch(query, *args)
     
