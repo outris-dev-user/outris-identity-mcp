@@ -1,7 +1,7 @@
 # Setup Guide
 
 ## 1. Get an API Key
-Visit [Outris Dashboard](https://dashboard.outris.com), sign up, and generate an MCP API Key.
+Visit [Outris Portal](https://portal.outris.com), sign up, and generate an MCP API Key.
 
 ## 2. Claude Desktop Integration
 

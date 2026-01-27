@@ -80,7 +80,7 @@ async def root():
             "health": "/health",
             "tools": "/tools"
         },
-        "docs": "https://dashboard.outris.com/docs"
+        "docs": "https://portal.outris.com/mcp"
     }
 
 

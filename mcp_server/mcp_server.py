@@ -128,7 +128,7 @@ class OutrisMCPServer:
                 return [TextContent(
                     type="text",
                     text="To unlock all tools:\n"
-                         "1. Visit https://dashboard.outris.com/mcp\n"
+                         "1. Visit https://portal.outris.com/mcp\n"
                          "2. Generate your free API key\n"
                          "3. Add to Claude config: Authorization: Bearer <your-key>"
                 )]
@@ -179,7 +179,7 @@ class OutrisMCPServer:
                 return [TextContent(
                     type="text",
                     text=f"Insufficient credits: need {e.required}, have {e.available}. "
-                         f"Visit https://dashboard.outris.com/mcp to add credits."
+                         f"Visit https://portal.outris.com/mcp to add credits."
                 )]
 
             # Execute tool

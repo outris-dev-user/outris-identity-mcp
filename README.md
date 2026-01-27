@@ -12,7 +12,7 @@ Outris is an MCP server that lets AI agents investigate phone numbers and emails
 
 ## Quick Start
 
-1. **Get an API Key:** [Generate key from Outris Dashboard](https://dashboard.outris.com)
+1. **Get an API Key:** [Generate key from Outris Dashboard](https://portal.outris.com)
 
 2. **Claude Desktop Setup:**
    ```json
