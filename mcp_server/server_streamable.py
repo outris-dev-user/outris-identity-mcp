@@ -8,6 +8,7 @@ Implements both:
 """
 import logging
 import json
+import uuid
 import asyncio
 from typing import Any, Callable, AsyncIterator
 from contextlib import asynccontextmanager
@@ -24,7 +25,12 @@ from .core.config import get_settings
 from .core.database import Database
 from .core.auth import validate_api_key, AuthError
 from .mcp_server import OutrisMCPServer
-from .tools.registry import ToolRegistry, execute_tool
+from .tools.registry import ToolRegistry, execute_tool, get_tool
+from .core.credits import (
+    deduct_credits,
+    record_tool_result,
+    InsufficientCreditsError
+)
 
 # Configure logging
 logging.basicConfig(
@@ -48,6 +54,7 @@ settings = get_settings()
 if settings.enable_kyc_tools:
     from .tools import kyc
 from .tools import platforms, commerce, investigation
+from .routes import public_router, user_router, admin_router, chat_router, demo_router
 
 
 @asynccontextmanager
@@ -81,6 +88,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routes
+app.include_router(public_router)
+app.include_router(user_router)
+app.include_router(admin_router)
+app.include_router(chat_router)
+app.include_router(demo_router)
 
 
 # ============================================================================
@@ -358,52 +372,109 @@ async def streamable_http_transport(
             
             logger.info(f"[HTTP] Authenticated as: {account.user_email}")
 
-            # Execute tool
-            logger.info(f"[HTTP] Executing tool: {tool_name}")
-            try:
-                result, execution_time = await execute_tool(
-                    name=tool_name,
-                    arguments=arguments,
-                    account_id=account.id
-                )
-                # Format result as MCP CallToolResult
-                # content: (TextContent | ImageContent | EmbeddedResource)[]
-                mcp_result = {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": json.dumps(result, cls=CustomJSONEncoder)
-                        }
-                    ],
-                    "isError": False
-                }
-
-                logger.info(f"[HTTP] {tool_name} executed successfully in {execution_time:.0f}ms")
-                return JSONResponse({
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": mcp_result
-                })
-            except ValueError as e:
-                logger.error(f"[HTTP] Validation error: {e}")
+            # Look up tool definition
+            tool_def = get_tool(tool_name)
+            if not tool_def:
                 return JSONResponse({
                     "jsonrpc": "2.0",
                     "id": request_id,
                     "error": {
                         "code": -32602,
                         "message": "Invalid params",
-                        "data": str(e)
+                        "data": f"Unknown tool: {tool_name}"
                     }
                 })
-            except Exception as e:
-                logger.error(f"[HTTP] Execution error: {e}", exc_info=True)
+
+            # Generate a unique request ID for credit tracking
+            credit_request_id = str(uuid.uuid4())
+
+            logger.info(f"[HTTP] Executing tool: {tool_name} (credit_req={credit_request_id})")
+
+            try:
+                # Deduct credits before execution
+                balance_before, balance_after = await deduct_credits(
+                    account=account,
+                    tool_name=tool_name,
+                    credits_cost=tool_def.credits,
+                    request_id=credit_request_id,
+                    input_summary={"args": list(arguments.keys())}
+                )
+
+                # Execute tool
+                result, execution_time = await execute_tool(
+                    name=tool_name,
+                    arguments=arguments,
+                    account_id=account.id
+                )
+
+                # Record success
+                await record_tool_result(
+                    request_id=credit_request_id,
+                    success=True,
+                    output_summary={"keys": list(result.keys())} if isinstance(result, dict) else None,
+                    latency_ms=execution_time,
+                    backend_endpoint=tool_name
+                )
+
+                # Format result with credit metadata
+                result_text = json.dumps(result, cls=CustomJSONEncoder)
+                metadata = f"\n\n[Credits: -{tool_def.credits} | Remaining: {balance_after} | Time: {execution_time:.0f}ms]"
+
+                logger.info(f"[HTTP] {tool_name} executed successfully in {execution_time:.0f}ms")
                 return JSONResponse({
                     "jsonrpc": "2.0",
                     "id": request_id,
-                    "error": {
-                        "code": -32603,
-                        "message": "Internal error",
-                        "data": str(e)
+                    "result": {
+                        "content": [
+                            {"type": "text", "text": result_text + metadata}
+                        ],
+                        "isError": False
+                    }
+                })
+
+            except InsufficientCreditsError as e:
+                logger.warning(f"[HTTP] Insufficient credits: {e}")
+                return JSONResponse({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "content": [{
+                            "type": "text",
+                            "text": f"Insufficient credits: need {e.required}, have {e.available}. Visit portal.outris.com to top up."
+                        }],
+                        "isError": True
+                    }
+                })
+
+            except Exception as e:
+                error_str = str(e).lower()
+                is_backend_error = any([
+                    "backend" in error_str, "timeout" in error_str,
+                    "connection" in error_str, "503" in error_str,
+                    "502" in error_str, "500" in error_str
+                ])
+
+                # Record failure (and refund if backend error)
+                await record_tool_result(
+                    request_id=credit_request_id,
+                    success=False,
+                    error_code="backend_error" if is_backend_error else "execution_error",
+                    error_message=str(e),
+                    is_backend_error=is_backend_error
+                )
+
+                credits_status = "refunded" if is_backend_error else "charged"
+                logger.error(f"[HTTP] Tool execution failed ({credits_status}): {e}")
+
+                return JSONResponse({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "content": [{
+                            "type": "text",
+                            "text": f"Error: {str(e)}\n\n[Credits: {credits_status}]"
+                        }],
+                        "isError": True
                     }
                 })
 
