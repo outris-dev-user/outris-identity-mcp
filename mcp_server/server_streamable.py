@@ -256,6 +256,14 @@ async def streamable_http_transport(
             return JSONResponse({"jsonrpc": "2.0", "result": {}})
 
         # ====================================================================
+        # Method: notifications/cancelled
+        # ====================================================================
+        elif method == "notifications/cancelled":
+            logger.info(f"[HTTP] Request cancelled by client: {params.get('requestId')}")
+            # Notifications don't require a response
+            return JSONResponse({"jsonrpc": "2.0", "result": {}})
+
+        # ====================================================================
         # Method: ping
         # ====================================================================
         elif method == "ping":
@@ -269,13 +277,7 @@ async def streamable_http_transport(
         # Method: tools/list (Public - no auth)
         # ====================================================================
         elif method == "tools/list":
-            tools = []
-            for name, tool_def in ToolRegistry.get_enabled().items():
-                tools.append({
-                    "name": name,
-                    "description": tool_def.description,
-                    "inputSchema": tool_def.inputSchema
-                })
+            tools = ToolRegistry.to_mcp_format()
             logger.info(f"[HTTP] tools/list: {len(tools)} tools returned")
             return JSONResponse({
                 "jsonrpc": "2.0",
