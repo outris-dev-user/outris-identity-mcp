@@ -175,17 +175,30 @@ async def streamable_http_transport(
         """Generate streaming JSON-RPC responses."""
         try:
             # Parse request body
+            body_bytes = b""
             try:
                 body_bytes = await request.body()
-                if not body_bytes:
-                    logger.warning("[HTTP] Empty request body received, ignoring")
-                    return
-                
-                body = json.loads(body_bytes)
             except Exception as e:
-                # Try to decode raw body for logging, careful with large bodies
-                raw_preview = body_bytes.decode('utf-8', errors='replace')[:1000] if 'body_bytes' in locals() else "Unavailable"
-                logger.error(f"Invalid JSON: {e} | Raw Body Preview: {raw_preview}")
+                logger.error(f"[HTTP] Failed to read request body: {e}")
+                yield json.dumps({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32700,
+                        "message": "Parse error",
+                        "data": f"Failed to read body: {e}"
+                    }
+                }).encode() + b"\n"
+                return
+            
+            if not body_bytes:
+                logger.warning("[HTTP] Empty request body received, ignoring")
+                return
+            
+            try:
+                body = json.loads(body_bytes)
+            except json.JSONDecodeError as e:
+                raw_preview = body_bytes.decode('utf-8', errors='replace')[:500]
+                logger.error(f"[HTTP] Invalid JSON: {e} | Raw Body: {raw_preview}")
                 yield json.dumps({
                     "jsonrpc": "2.0",
                     "error": {
