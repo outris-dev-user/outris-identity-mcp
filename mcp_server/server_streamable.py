@@ -167,256 +167,248 @@ async def streamable_http_transport(
         "params": {...}
     }
     
-    Response format (newline-delimited JSON):
+    Response format (JSON-RPC 2.0):
     {"jsonrpc":"2.0","id":1,"result":{...}}
     """
     
-    async def response_generator() -> AsyncIterator[bytes]:
-        """Generate streaming JSON-RPC responses."""
-        try:
-            # Parse request body
-            body_bytes = b""
-            try:
-                body_bytes = await request.body()
-            except Exception as e:
-                logger.error(f"[HTTP] Failed to read request body: {e}")
-                yield json.dumps({
-                    "jsonrpc": "2.0",
-                    "error": {
-                        "code": -32700,
-                        "message": "Parse error",
-                        "data": f"Failed to read body: {e}"
-                    }
-                }).encode() + b"\n"
-                return
-            
-            if not body_bytes:
-                logger.warning("[HTTP] Empty request body received, ignoring")
-                return
-            
-            try:
-                body = json.loads(body_bytes)
-            except json.JSONDecodeError as e:
-                raw_preview = body_bytes.decode('utf-8', errors='replace')[:500]
-                logger.error(f"[HTTP] Invalid JSON: {e} | Raw Body: {raw_preview}")
-                yield json.dumps({
-                    "jsonrpc": "2.0",
-                    "error": {
-                        "code": -32700,
-                        "message": "Parse error",
-                        "data": str(e)
-                    }
-                }).encode() + b"\n"
-                return
+    # Parse request body
+    try:
+        body_bytes = await request.body()
+    except Exception as e:
+        logger.error(f"[HTTP] Failed to read request body: {e}")
+        return JSONResponse({
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {
+                "code": -32700,
+                "message": "Parse error",
+                "data": f"Failed to read body: {e}"
+            }
+        })
+    
+    if not body_bytes:
+        logger.warning("[HTTP] Empty request body received")
+        return JSONResponse({
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {
+                "code": -32700,
+                "message": "Parse error",
+                "data": "Empty request body"
+            }
+        })
+    
+    try:
+        body = json.loads(body_bytes)
+    except json.JSONDecodeError as e:
+        raw_preview = body_bytes.decode('utf-8', errors='replace')[:500]
+        logger.error(f"[HTTP] Invalid JSON: {e} | Raw Body: {raw_preview}")
+        return JSONResponse({
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {
+                "code": -32700,
+                "message": "Parse error",
+                "data": str(e)
+            }
+        })
 
-            request_id = body.get("id")
-            method = body.get("method")
-            params = body.get("params", {})
+    request_id = body.get("id")
+    method = body.get("method")
+    params = body.get("params", {})
 
-            logger.info(f"[HTTP] Method: {method}, ID: {request_id}")
+    logger.info(f"[HTTP] Method: {method}, ID: {request_id}")
 
-            # ====================================================================
-            # Method: initialize (Handshake)
-            # ====================================================================
-            if method == "initialize":
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": {
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": {
-                            "tools": {} # We expose tools
-                        },
-                        "serverInfo": {
-                            "name": "outris-mcp-server",
-                            "version": "2.0.0"
-                        }
+    try:
+        # ====================================================================
+        # Method: initialize (Handshake)
+        # ====================================================================
+        if method == "initialize":
+            logger.info(f"[HTTP] Initialized")
+            return JSONResponse({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {
+                        "tools": {}
+                    },
+                    "serverInfo": {
+                        "name": "outris-mcp-server",
+                        "version": "2.0.0"
                     }
                 }
-                logger.info(f"[HTTP] Initialized")
-                yield json.dumps(response).encode() + b"\n"
+            })
 
-            # ====================================================================
-            # Method: notifications/initialized
-            # ====================================================================
-            elif method == "notifications/initialized":
-                # client acknowledging initialization
-                logger.info(f"[HTTP] Client initialized notification")
-                # No response needed for notifications, but if client sends ID, sending empty result is safe/polite
-                if request_id is not None:
-                     yield json.dumps({
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "result": {}
-                    }).encode() + b"\n"
-
-            # ====================================================================
-            # Method: ping
-            # ====================================================================
-            elif method == "ping":
-                yield json.dumps({
+        # ====================================================================
+        # Method: notifications/initialized
+        # ====================================================================
+        elif method == "notifications/initialized":
+            logger.info(f"[HTTP] Client initialized notification")
+            # Notifications don't require a response, but we return empty result if ID present
+            if request_id is not None:
+                return JSONResponse({
                     "jsonrpc": "2.0",
                     "id": request_id,
                     "result": {}
-                }).encode() + b"\n"
+                })
+            # For true notifications (no id), return minimal ack
+            return JSONResponse({"jsonrpc": "2.0", "result": {}})
 
-            # ====================================================================
-            # Method: tools/list (Public - no auth)
-            # ====================================================================
-            elif method == "tools/list":
-                try:
-                    tools = []
-                    for name, tool_def in ToolRegistry.get_enabled().items():
-                        tools.append({
-                            "name": name,
-                            "description": tool_def.description,
-                            "inputSchema": tool_def.inputSchema
-                        })
+        # ====================================================================
+        # Method: ping
+        # ====================================================================
+        elif method == "ping":
+            return JSONResponse({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {}
+            })
 
-                    response = {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "result": {"tools": tools}
-                    }
-                    logger.info(f"[HTTP] tools/list: {len(tools)} tools returned")
-                    yield json.dumps(response).encode() + b"\n"
+        # ====================================================================
+        # Method: tools/list (Public - no auth)
+        # ====================================================================
+        elif method == "tools/list":
+            tools = []
+            for name, tool_def in ToolRegistry.get_enabled().items():
+                tools.append({
+                    "name": name,
+                    "description": tool_def.description,
+                    "inputSchema": tool_def.inputSchema
+                })
+            logger.info(f"[HTTP] tools/list: {len(tools)} tools returned")
+            return JSONResponse({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {"tools": tools}
+            })
 
-                except Exception as e:
-                    logger.error(f"tools/list error: {e}", exc_info=True)
-                    response = {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "error": {
-                            "code": -32603,
-                            "message": "Internal error",
-                            "data": str(e)
-                        }
-                    }
-                    yield json.dumps(response).encode() + b"\n"
+        # ====================================================================
+        # Method: tools/call (Requires auth)
+        # ====================================================================
+        elif method == "tools/call":
+            # Extract tool name and arguments
+            tool_name = params.get("name")
+            arguments = params.get("arguments", {})
 
-            # ====================================================================
-            # Method: tools/call (Requires auth)
-            # ====================================================================
-            elif method == "tools/call":
-                try:
-                    # Extract tool name and arguments
-                    tool_name = params.get("name")
-                    arguments = params.get("arguments", {})
-
-                    if not tool_name:
-                        raise ValueError("Tool name required in params.name")
-
-                    # Validate API key from header
-                    if not authorization:
-                        logger.warning(f"[HTTP] Unauthorized tools/call attempt (no auth)")
-                        response = {
-                            "jsonrpc": "2.0",
-                            "id": request_id,
-                            "error": {
-                                "code": 401,
-                                "message": "Unauthorized",
-                                "data": "Authorization header required (Bearer <api_key>)"
-                            }
-                        }
-                        yield json.dumps(response).encode() + b"\n"
-                        return
-
-                    # Parse Bearer token
-                    if not authorization.startswith("Bearer "):
-                        raise AuthError("Invalid Authorization header format")
-
-                    api_key = authorization.replace("Bearer ", "")
-
-                    # Validate and get account
-                    account = await validate_api_key(api_key)
-                    logger.info(f"[HTTP] Authenticated as: {account.client_name}")
-
-                    # Execute tool
-                    logger.info(f"[HTTP] Executing tool: {tool_name}")
-                    result = await execute_tool(
-                        tool_name=tool_name,
-                        arguments=arguments,
-                        account=account,
-                        request_id=str(request_id)
-                    )
-
-                    response = {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "result": result
-                    }
-                    logger.info(f"[HTTP] {tool_name} executed successfully")
-                    yield json.dumps(response).encode() + b"\n"
-
-                except AuthError as e:
-                    logger.warning(f"[HTTP] Auth error: {e}")
-                    response = {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "error": {
-                            "code": 401,
-                            "message": "Unauthorized",
-                            "data": str(e)
-                        }
-                    }
-                    yield json.dumps(response).encode() + b"\n"
-
-                except ValueError as e:
-                    logger.error(f"[HTTP] Validation error: {e}")
-                    response = {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "error": {
-                            "code": -32602,
-                            "message": "Invalid params",
-                            "data": str(e)
-                        }
-                    }
-                    yield json.dumps(response).encode() + b"\n"
-
-                except Exception as e:
-                    logger.error(f"[HTTP] Execution error: {e}", exc_info=True)
-                    response = {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "error": {
-                            "code": -32603,
-                            "message": "Internal error",
-                            "data": str(e)
-                        }
-                    }
-                    yield json.dumps(response).encode() + b"\n"
-
-            # ====================================================================
-            # Unknown method
-            # ====================================================================
-            else:
-                logger.warning(f"[HTTP] Unknown method: {method}")
-                response = {
+            if not tool_name:
+                return JSONResponse({
                     "jsonrpc": "2.0",
                     "id": request_id,
                     "error": {
-                        "code": -32601,
-                        "message": "Method not found"
+                        "code": -32602,
+                        "message": "Invalid params",
+                        "data": "Tool name required in params.name"
                     }
-                }
-                yield json.dumps(response).encode() + b"\n"
+                })
 
-        except Exception as e:
-            logger.error(f"[HTTP] Unexpected error: {e}", exc_info=True)
-            yield json.dumps({
+            # Validate API key from header
+            if not authorization:
+                logger.warning(f"[HTTP] Unauthorized tools/call attempt (no auth)")
+                return JSONResponse({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": 401,
+                        "message": "Unauthorized",
+                        "data": "Authorization header required (Bearer <api_key>)"
+                    }
+                })
+
+            # Parse Bearer token
+            if not authorization.startswith("Bearer "):
+                return JSONResponse({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": 401,
+                        "message": "Unauthorized",
+                        "data": "Invalid Authorization header format"
+                    }
+                })
+
+            api_key = authorization.replace("Bearer ", "")
+
+            # Validate and get account
+            try:
+                account = await validate_api_key(api_key)
+            except AuthError as e:
+                logger.warning(f"[HTTP] Auth error: {e}")
+                return JSONResponse({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": 401,
+                        "message": "Unauthorized",
+                        "data": str(e)
+                    }
+                })
+            
+            logger.info(f"[HTTP] Authenticated as: {account.client_name}")
+
+            # Execute tool
+            logger.info(f"[HTTP] Executing tool: {tool_name}")
+            try:
+                result = await execute_tool(
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    account=account,
+                    request_id=str(request_id)
+                )
+                logger.info(f"[HTTP] {tool_name} executed successfully")
+                return JSONResponse({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": result
+                })
+            except ValueError as e:
+                logger.error(f"[HTTP] Validation error: {e}")
+                return JSONResponse({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32602,
+                        "message": "Invalid params",
+                        "data": str(e)
+                    }
+                })
+            except Exception as e:
+                logger.error(f"[HTTP] Execution error: {e}", exc_info=True)
+                return JSONResponse({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32603,
+                        "message": "Internal error",
+                        "data": str(e)
+                    }
+                })
+
+        # ====================================================================
+        # Unknown method
+        # ====================================================================
+        else:
+            logger.warning(f"[HTTP] Unknown method: {method}")
+            return JSONResponse({
                 "jsonrpc": "2.0",
+                "id": request_id,
                 "error": {
-                    "code": -32603,
-                    "message": "Internal error",
-                    "data": str(e)
+                    "code": -32601,
+                    "message": "Method not found"
                 }
-            }).encode() + b"\n"
+            })
 
-    return StreamingResponse(
-        response_generator(),
-        media_type="application/json"
-    )
+    except Exception as e:
+        logger.error(f"[HTTP] Unexpected error: {e}", exc_info=True)
+        return JSONResponse({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": -32603,
+                "message": "Internal error",
+                "data": str(e)
+            }
+        })
 
 
 # ============================================================================
