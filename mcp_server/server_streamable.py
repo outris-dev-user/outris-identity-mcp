@@ -347,7 +347,7 @@ async def streamable_http_transport(
                     }
                 })
             
-            logger.info(f"[HTTP] Authenticated as: {account.client_name}")
+            logger.info(f"[HTTP] Authenticated as: {account.user_email}")
 
             # Execute tool
             logger.info(f"[HTTP] Executing tool: {tool_name}")

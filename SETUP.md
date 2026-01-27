@@ -30,9 +30,9 @@ Edit your Claude Desktop config:
         "mcp-remote", 
         "https://mcp-server.outris.com/http",
         "--transport", 
-        "streamable-http",
+        "http-first",
         "--header", 
-        "Authorization=Bearer YOUR_OUTRIS_API_KEY"
+        "Authorization: Bearer YOUR_OUTRIS_API_KEY"
       ]
     }
   }
@@ -50,9 +50,9 @@ Edit your Claude Desktop config:
         "mcp-remote", 
         "https://mcp-server.outris.com/sse", 
         "--transport", 
-        "sse-only", 
+        "sse-first", 
         "--header", 
-        "Authorization=Bearer YOUR_OUTRIS_API_KEY"
+        "Authorization: Bearer YOUR_OUTRIS_API_KEY"
       ]
     }
   }
@@ -244,7 +244,7 @@ import asyncio
 | Use Case | Recommended | Configuration |
 |----------|------------|---|
 | **Cloud Integration** | Streamable HTTP | `https://mcp-server.outris.com/http` |
-| **Claude Desktop** | Streamable HTTP | Use `streamable-http` transport |
+| **Claude Desktop** | Streamable HTTP | Use `http-first` transport |
 | **Cursor / Windsurf** | Streamable HTTP | HTTP endpoint with headers |
 | **Local Development** | STDIO | `python -m mcp_server --stdio` |
 | **Self-Hosted Web** | HTTP Server | `python -m mcp_server --http` |
