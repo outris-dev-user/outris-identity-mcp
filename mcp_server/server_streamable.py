@@ -352,13 +352,12 @@ async def streamable_http_transport(
             # Execute tool
             logger.info(f"[HTTP] Executing tool: {tool_name}")
             try:
-                result = await execute_tool(
-                    tool_name=tool_name,
+                result, execution_time = await execute_tool(
+                    name=tool_name,
                     arguments=arguments,
-                    account=account,
-                    request_id=str(request_id)
+                    account_id=account.id
                 )
-                logger.info(f"[HTTP] {tool_name} executed successfully")
+                logger.info(f"[HTTP] {tool_name} executed successfully in {execution_time:.0f}ms")
                 return JSONResponse({
                     "jsonrpc": "2.0",
                     "id": request_id,
