@@ -1,0 +1,180 @@
+{
+  "name": "outris-identity",
+  "humanName": "Outris Identity MCP Server",
+  "description": "Model Context Protocol server for identity verification - investigate phone numbers and emails, find linked identities, check platform registrations, and detect data breaches.",
+  "version": "2.0.0",
+  "author": {
+    "name": "Outris Technologies",
+    "email": "support@outris.com",
+    "url": "https://outris.com"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/outris/outris-identity-mcp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/outris/outris-identity-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/outris/outris-identity-mcp/issues"
+  },
+  "keywords": [
+    "identity",
+    "phone",
+    "email",
+    "osint",
+    "verification",
+    "kyc",
+    "compliance",
+    "mcp"
+  ],
+  "capabilities": {
+    "tools": [
+      {
+        "name": "get_identity_profile",
+        "description": "Get complete identity profile for a phone or email",
+        "credits": 3
+      },
+      {
+        "name": "get_name",
+        "description": "Find names linked to a phone number",
+        "credits": 2
+      },
+      {
+        "name": "get_email",
+        "description": "Find emails linked to a phone number",
+        "credits": 2
+      },
+      {
+        "name": "get_address",
+        "description": "Find addresses linked to a phone number",
+        "credits": 2
+      },
+      {
+        "name": "get_alternate_phones",
+        "description": "Find alternate phone numbers for the same person",
+        "credits": 2
+      },
+      {
+        "name": "check_online_platforms",
+        "description": "Check registration on 31+ platforms (India + global)",
+        "credits": 1
+      },
+      {
+        "name": "check_digital_commerce_activity",
+        "description": "Check ecommerce, travel, and quick-commerce activity",
+        "credits": 1
+      },
+      {
+        "name": "check_breaches",
+        "description": "Detect if phone/email appears in known data breaches",
+        "credits": 1
+      }
+    ]
+  },
+  "transports": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp-server.outris.com/http",
+      "description": "Stateless HTTP transport (recommended for cloud deployments)",
+      "requiresAuth": true,
+      "auth": {
+        "type": "bearer",
+        "headerName": "Authorization",
+        "scheme": "Bearer"
+      }
+    },
+    {
+      "type": "sse",
+      "url": "https://mcp-server.outris.com/sse",
+      "description": "Server-Sent Events (legacy, backward compatible)",
+      "requiresAuth": true,
+      "auth": {
+        "type": "bearer",
+        "headerName": "Authorization",
+        "scheme": "Bearer"
+      }
+    },
+    {
+      "type": "stdio",
+      "description": "Standard I/O (for local CLI installation)",
+      "requiresAuth": false,
+      "auth": null
+    }
+  ],
+  "installation": {
+    "type": "remote",
+    "url": "https://mcp-server.outris.com/http",
+    "requirements": "API key from https://portal.outris.com",
+    "instructions": "See SETUP.md for detailed configuration",
+    "localInstallation": {
+      "type": "github",
+      "url": "https://github.com/outris/outris-identity-mcp",
+      "requirements": "Python 3.11+, PostgreSQL",
+      "command": "pip install -e .",
+      "runCommand": "python -m mcp_server --stdio"
+    }
+  },
+  "documentation": {
+    "setup": "https://github.com/outris/outris-identity-mcp/blob/main/SETUP.md",
+    "tools": "https://github.com/outris/outris-identity-mcp/blob/main/TOOLS.md",
+    "architecture": "https://github.com/outris/outris-identity-mcp/blob/main/docs/ARCHITECTURE.md",
+    "deployment": "https://github.com/outris/outris-identity-mcp/blob/main/DEPLOYMENT.md",
+    "api": "https://docs.outris.com"
+  },
+  "features": [
+    {
+      "name": "Identity Resolution",
+      "description": "Find names, emails, and addresses linked to phone numbers"
+    },
+    {
+      "name": "Platform Detection",
+      "description": "Detect registration on 31+ Indian platforms + 3 global platforms"
+    },
+    {
+      "name": "Commerce Activity",
+      "description": "Check ecommerce, travel, and quick-commerce activity"
+    },
+    {
+      "name": "Breach Detection",
+      "description": "Identify if phone/email appears in known data breaches"
+    },
+    {
+      "name": "Multiple Transports",
+      "description": "Support for Streamable HTTP (primary), SSE (legacy), and STDIO (local)"
+    },
+    {
+      "name": "Credit System",
+      "description": "Fair usage pricing with credits per tool call"
+    },
+    {
+      "name": "Global Coverage",
+      "description": "Full India coverage + partial global support"
+    }
+  ],
+  "pricing": {
+    "type": "credit-based",
+    "description": "Tools consume credits from account balance",
+    "freeTier": {
+      "credits": 100,
+      "tools": ["check_online_platforms", "check_breaches"]
+    },
+    "pricePerCredit": 0.01,
+    "creditsPerMonth": 1000
+  },
+  "contacts": {
+    "support": "support@outris.com",
+    "documentation": "https://docs.outris.com",
+    "github": "https://github.com/outris/outris-identity-mcp"
+  },
+  "metadata": {
+    "registryVersion": "2024-11",
+    "mcpVersion": "1.0.0",
+    "pythonVersion": "3.11+",
+    "osSupport": ["linux", "macos", "windows"],
+    "region": "global"
+  },
+  "changelog": {
+    "2.0.0": "Added Streamable HTTP transport (new MCP spec), STDIO support for local installation, improved documentation",
+    "1.0.0": "Initial release with SSE transport"
+  }
+}
