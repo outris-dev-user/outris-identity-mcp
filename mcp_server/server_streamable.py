@@ -196,9 +196,54 @@ async def streamable_http_transport(
             logger.info(f"[HTTP] Method: {method}, ID: {request_id}")
 
             # ====================================================================
+            # Method: initialize (Handshake)
+            # ====================================================================
+            if method == "initialize":
+                response = {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {
+                            "tools": {} # We expose tools
+                        },
+                        "serverInfo": {
+                            "name": "outris-mcp-server",
+                            "version": "2.0.0"
+                        }
+                    }
+                }
+                logger.info(f"[HTTP] Initialized")
+                yield json.dumps(response).encode() + b"\n"
+
+            # ====================================================================
+            # Method: notifications/initialized
+            # ====================================================================
+            elif method == "notifications/initialized":
+                # client acknowledging initialization
+                logger.info(f"[HTTP] Client initialized notification")
+                # No response needed for notifications, but if client sends ID, sending empty result is safe/polite
+                if request_id is not None:
+                     yield json.dumps({
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {}
+                    }).encode() + b"\n"
+
+            # ====================================================================
+            # Method: ping
+            # ====================================================================
+            elif method == "ping":
+                yield json.dumps({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {}
+                }).encode() + b"\n"
+
+            # ====================================================================
             # Method: tools/list (Public - no auth)
             # ====================================================================
-            if method == "tools/list":
+            elif method == "tools/list":
                 try:
                     tools = []
                     for name, tool_def in ToolRegistry.get_enabled().items():
