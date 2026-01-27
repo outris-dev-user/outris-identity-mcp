@@ -75,12 +75,19 @@ class ToolRegistry:
         """Convert all tools to MCP protocol format."""
         tools = []
         for name, tool in cls.get_enabled().items():
+            # Build properties dict without 'required' key (invalid in JSON Schema properties)
+            clean_properties = {}
+            for param_name, param_def in tool.parameters.items():
+                clean_properties[param_name] = {
+                    k: v for k, v in param_def.items() if k != "required"
+                }
+
             tools.append({
                 "name": name,
                 "description": tool.description,
                 "inputSchema": {
                     "type": "object",
-                    "properties": tool.parameters,
+                    "properties": clean_properties,
                     "required": [
                         k for k, v in tool.parameters.items() 
                         if v.get("required", False)
