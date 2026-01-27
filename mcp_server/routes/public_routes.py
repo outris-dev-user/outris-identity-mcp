@@ -234,6 +234,7 @@ async def demo_platform_check(
         
     try:
         result, exec_time = await execute_tool("check_online_platforms", {"phone": phone})
+        logger.info(f"DEBUG RAW PLATFORM RESULT for {phone}: {result}") # Debug log
         remaining = _increment_usage(ip_hash)
         
         # Format response (logic from previous step)
@@ -242,12 +243,12 @@ async def demo_platform_check(
         
         platforms_dict = {}
         for p in registered_platforms:
-             p_name = p.get("name") if isinstance(p, dict) else p
+             p_name = p.get("platform") or p.get("name") if isinstance(p, dict) else p
              if p_name: 
                  platforms_dict[p_name.lower()] = {"domain": p_name.lower(), "exists": True, "status": "registered"}
         
         for p in not_registered:
-             p_name = p.get("name") if isinstance(p, dict) else p
+             p_name = p.get("platform") or p.get("name") if isinstance(p, dict) else p
              if p_name: 
                  platforms_dict[p_name.lower()] = {"domain": p_name.lower(), "exists": False, "status": "not_registered"}
         
