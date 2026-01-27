@@ -5,7 +5,7 @@ import httpx
 import logging
 from typing import Optional, Any
 
-from core.config import get_settings
+from ..core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
