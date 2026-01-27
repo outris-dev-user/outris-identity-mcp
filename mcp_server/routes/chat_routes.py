@@ -96,7 +96,7 @@ If the user asks about a phone number or identity, USE THE TOOLS to get real dat
         logger.info(f"Agentic loop iteration {iteration + 1}")
         
         response = client.messages.create(
-            model="claude-3-5-sonnet-20241022", # Updated to valid model name
+            model="claude-sonnet-4-latest", # Updated to valid model name
             max_tokens=2048,
             system=system_prompt,
             tools=tools,
@@ -345,5 +345,5 @@ async def chat_status():
         "available": bool(api_key),
         "tools_enabled": True,
         "tools_count": len(tools),
-        "model": "claude-3-5-sonnet-20241022"
+        "model": "claude-3-5-sonnet-20240620"
     }
