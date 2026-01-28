@@ -278,8 +278,15 @@ async def enable_mcp(request: Request):
     # Generate MCP API key
     full_key, key_hash, key_prefix = generate_mcp_key()
     
+    # Also generate a Direct API Key for public.api_keys (Shadow Key)
+    # This ensures the user appears in the Dashboard and can have permissions toggled
+    direct_key = f"sk_{secrets.token_urlsafe(24)}"
+    direct_key_hash = hashlib.sha256(direct_key.encode()).hexdigest()
+    direct_key_prefix = direct_key[:7]
+    
     # Create account
     try:
+        # 1. Create MCP Account
         row = await Database.fetchrow(
             """
             INSERT INTO mcp.user_accounts (
@@ -309,6 +316,33 @@ async def enable_mcp(request: Request):
             "free",
             50
         )
+        
+        # 2. Check/Create Public API Key (Shadow Key)
+        # Check if one already exists
+        has_api_key = await Database.fetchval(
+            "SELECT 1 FROM public.api_keys WHERE client_email = $1 LIMIT 1",
+            email
+        )
+        
+        if not has_api_key:
+            await Database.execute(
+                """
+                INSERT INTO public.api_keys (
+                    key_hash,
+                    key_prefix,
+                    client_name,
+                    client_email,
+                    created_at,
+                    is_active,
+                    allow_raw_records
+                ) VALUES ($1, $2, $3, $4, NOW(), TRUE, FALSE)
+                """,
+                direct_key_hash,
+                direct_key_prefix,
+                user.get("display_name") or email.split("@")[0],
+                email
+            )
+            
     except Exception as e:
         logger.error(f"Failed to create MCP account: {e}")
         raise HTTPException(status_code=500, detail="Failed to create MCP account")
