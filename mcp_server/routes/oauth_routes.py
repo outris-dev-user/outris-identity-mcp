@@ -294,9 +294,7 @@ async def exchange_token(
         "sub": row["user_email"],
         "email": row["user_email"],
         "role": "user",
-        "displayName": display_name,
-        "aud": "mcp-server",
-        "iss": "outris-oauth"
+        "displayName": display_name
     }
     
     access_token = create_jwt_token(payload, expires_delta=timedelta(days=30))
