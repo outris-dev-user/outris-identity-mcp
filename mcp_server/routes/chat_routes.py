@@ -311,7 +311,8 @@ async def chat_stream(request: Request, body: ChatRequest):
             yield f"data: {json.dumps({'type': 'status', 'message': 'Analyzing your request...'})}\n\n"
             
             response_text, tools_used, credits_used = await run_agentic_loop(
-                user_message=body.message
+                user_message=body.message,
+                user_email=user["email"]
             )
             
             # Send tools used
