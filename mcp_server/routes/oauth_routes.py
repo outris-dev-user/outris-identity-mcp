@@ -14,6 +14,7 @@ Flow:
 3. Dashboard redirects user back to Claude with code
 4. Claude calls Backend POST /api/oauth/token with code -> Returns JWT Access Token
 """
+import json
 import secrets
 import hashlib
 import logging
@@ -76,6 +77,7 @@ async def oauth_discovery():
         "issuer": mcp_base_url,
         "authorization_endpoint": f"{dashboard_url}/oauth/authorize",
         "token_endpoint": f"{mcp_base_url}/api/oauth/token",
+        "registration_endpoint": f"{mcp_base_url}/api/oauth/register",
         "token_endpoint_auth_methods_supported": ["none"],
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code"],
@@ -84,21 +86,82 @@ async def oauth_discovery():
     }
 
 
+@router.get("/.well-known/oauth-protected-resource/http")
 @router.get("/.well-known/oauth-protected-resource")
 async def protected_resource_metadata():
     """
-    OAuth Protected Resource Metadata.
+    OAuth Protected Resource Metadata (RFC 9728).
+    Serves both root and path-specific (/http) variants.
     """
     settings = get_settings()
     mcp_base_url = settings.mcp_base_url
 
     return {
-        "resource": mcp_base_url,
+        "resource": f"{mcp_base_url}/http",
         "authorization_servers": [mcp_base_url],
         "scopes_supported": ["mcp"],
         "bearer_methods_supported": ["header"],
         "resource_documentation": "https://portal.outris.com/mcp"
     }
+
+
+# ============================================================================
+# Dynamic Client Registration (RFC 7591 - called by Claude.ai)
+# ============================================================================
+
+@router.post("/api/oauth/register")
+async def register_client(request: Request):
+    """
+    Dynamic Client Registration endpoint.
+
+    Claude.ai calls this to register itself as an OAuth client
+    before starting the authorization flow.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    # Generate a client_id for this registration
+    client_id = f"claude-{secrets.token_urlsafe(16)}"
+
+    redirect_uris = body.get("redirect_uris", [])
+    client_name = body.get("client_name", "unknown")
+    client_uri = body.get("client_uri", "")
+
+    logger.info(f"OAuth client registered: {client_name} (id={client_id}, redirects={redirect_uris})")
+
+    # Store client registration (optional: persist to DB for validation later)
+    # For now, we accept all registrations dynamically
+    try:
+        await Database.execute(
+            """
+            INSERT INTO mcp.oauth_clients (
+                client_id, client_name, client_uri, redirect_uris, created_at
+            ) VALUES ($1, $2, $3, $4, NOW())
+            ON CONFLICT (client_id) DO NOTHING
+            """,
+            client_id,
+            client_name,
+            client_uri,
+            json.dumps(redirect_uris)
+        )
+    except Exception as e:
+        # If table doesn't exist or DB error, still return success
+        # The registration is stateless for now
+        logger.warning(f"Could not persist client registration: {e}")
+
+    return JSONResponse(
+        status_code=201,
+        content={
+            "client_id": client_id,
+            "client_name": client_name,
+            "redirect_uris": redirect_uris,
+            "grant_types": ["authorization_code"],
+            "response_types": ["code"],
+            "token_endpoint_auth_method": "none",
+        }
+    )
 
 
 # ============================================================================
