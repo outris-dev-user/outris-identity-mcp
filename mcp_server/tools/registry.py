@@ -158,8 +158,8 @@ async def execute_tool(
     try:
         # Set context if account_id provided
         if account_id:
-            from .core.auth import get_account_by_id
-            from .core.context import current_account
+            from ..core.auth import get_account_by_id
+            from ..core.context import current_account
             
             account = await get_account_by_id(account_id)
             if account:
