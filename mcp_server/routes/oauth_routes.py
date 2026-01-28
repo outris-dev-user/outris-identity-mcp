@@ -68,15 +68,8 @@ async def oauth_discovery():
     OAuth 2.0 Discovery Endpoint for Claude.ai.
     """
     settings = get_settings()
-    # Base URL for the dashboard (where authorization happens)
-    # Assumes dashboard is hosted at portal.outris.com or configured via env
-    # For now we use the backend API base for token and specific known dashboard URL
-    
-    # We need to know the Dashboard URL to tell Claude where to send the user
-    # This should be configured. Defaults to https://portal.outris.com
-    dashboard_url = "https://portal.outris.com" 
-    
-    api_base_url = "https://rail.outris.com" # Or derive from request
+    dashboard_url = settings.dashboard_url
+    api_base_url = settings.api_base_url
     
     return {
         "issuer": api_base_url,
@@ -88,6 +81,24 @@ async def oauth_discovery():
         "code_challenge_methods_supported": ["S256"],
         "scopes_supported": ["mcp"],
     }
+
+
+@router.get("/.well-known/oauth-protected-resource")
+async def protected_resource_metadata():
+    """
+    OAuth Protected Resource Metadata.
+    """
+    settings = get_settings()
+    api_base_url = settings.api_base_url
+    
+    return {
+        "resource": api_base_url,
+        "authorization_servers": [api_base_url], # We are our own auth server
+        "scopes_supported": ["mcp"],
+        "bearer_methods_supported": ["header"],
+        "resource_documentation": "https://portal.outris.com/mcp"
+    }
+
 
 # ============================================================================
 # Authorize Endpoint (Internal - called by Dashboard)
@@ -109,12 +120,6 @@ async def authorize_user(
     # 2. Validate Request
     if request.response_type != "code":
         raise HTTPException(status_code=400, detail="Unsupported response_type")
-    
-    # In a real implementation, we would validate client_id against a registered clients table.
-    # For now, we allow the known Claude ID or 'claude'
-    # valid_clients = ["claude", "https://claude.ai"]
-    # if request.client_id not in valid_clients:
-    #     logger.warning(f"Unknown client_id: {request.client_id}")
     
     # 3. Generate Code
     code = secrets.token_urlsafe(32)
@@ -191,6 +196,9 @@ async def exchange_token(
         raise HTTPException(status_code=400, detail="Code expired")
         
     if row["redirect_uri"] != redirect_uri:
+        # In relaxed mode, we might just log this warning, but strictly it should fail.
+        # However, some clients might have mismatching trailing slashes.
+        # For now, simplistic equality check.
         raise HTTPException(status_code=400, detail="Redirect URI mismatch")
         
     # 3. Verify PKCE (if challenge exists)
@@ -216,37 +224,22 @@ async def exchange_token(
     await Database.execute("UPDATE mcp.oauth_codes SET used = TRUE WHERE code = $1", code)
     
     # 5. Issue Token
-    # We reissue a standard User JWT. 
-    # In future, we might want a specific OAuth token scope, but for now, 
-    # re-using the User JWT allows seamless integration with existing tools.
+    display_name = row["user_email"].split("@")[0]
     
-    # We need a display name for the token. Fetch from user accounts or use email parts.
-    display_name = row["user_email"].split("@")[0] # Callback to user service if needed
-    
-    # We need the JWT secret. Import from existing auth module or config.
-    # Note: user_routes has create_jwt_token logic? No, it only validates. 
-    # We need to replicate creation or import it.
-    
-    settings = get_settings()
-    if not settings.jwt_secret_key:
-         raise HTTPException(status_code=500, detail="Server config error")
-
-    # generate generic token
     payload = {
         "sub": row["user_email"],
         "email": row["user_email"],
-        "role": "user", # Default to user
+        "role": "user",
         "displayName": display_name,
-        "exp": datetime.utcnow() + timedelta(days=30), # Long lived for MCP?
         "aud": "mcp-server",
         "iss": "outris-oauth"
     }
     
-    import jwt # Helper import
-    access_token = jwt.encode(payload, settings.jwt_secret_key, algorithm="HS256")
+    access_token = create_jwt_token(payload, expires_delta=timedelta(days=30))
     
     return OAuthTokenResponse(
         access_token=access_token,
         expires_in=30 * 24 * 60 * 60, # 30 days
         scope="mcp"
     )
+

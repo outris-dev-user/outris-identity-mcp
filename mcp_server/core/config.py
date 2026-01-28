@@ -3,6 +3,7 @@ MCP Server Configuration
 """
 import os
 from functools import lru_cache
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -13,7 +14,7 @@ class Settings(BaseSettings):
     database_url: str
     
     # Backend API
-    backend_url: str = "https://api.outris.com"  # Default to production, override with env
+    backend_url: str = Field(default="https://api.outris.com", description="Main Backend URL")
     backend_api_key: str = ""
     
     # Server
@@ -23,6 +24,10 @@ class Settings(BaseSettings):
     
     # Environment
     environment: str = "production"
+    
+    # URLs
+    dashboard_url: str = "https://portal.outris.com"
+    api_base_url: str = Field(default="https://rail.outris.com", validation_alias="BACKEND_API_URL")
     
     # JWT Authentication (shared with main backend)
     jwt_secret_key: str = ""
