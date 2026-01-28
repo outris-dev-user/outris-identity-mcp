@@ -27,6 +27,7 @@ class MCPAccount:
     is_active: bool
     stripe_customer_id: Optional[str] = None
     last_connected_at: Optional[datetime] = None
+    allow_raw_records: bool = False
 
 
 class AuthError(Exception):
@@ -84,6 +85,16 @@ async def validate_api_key(api_key: str) -> MCPAccount:
     if not row["is_active"]:
         raise AuthError("MCP account is deactivated", "account_inactive")
     
+    # Fetch permissions from public.api_keys
+    # Use the most permissive setting if multiple keys exist
+    perm_query = """
+        SELECT bool_or(allow_raw_records) as allow_raw
+        FROM public.api_keys 
+        WHERE client_email = $1 AND is_active = TRUE
+    """
+    perm_row = await Database.fetchrow(perm_query, row["user_email"])
+    allow_raw = perm_row["allow_raw"] if perm_row and perm_row["allow_raw"] is not None else False
+    
     # Update last_connected_at
     await Database.execute(
         "UPDATE mcp.user_accounts SET last_connected_at = NOW() WHERE id = $1",
@@ -98,7 +109,8 @@ async def validate_api_key(api_key: str) -> MCPAccount:
         credits_tier=row["credits_tier"],
         is_active=row["is_active"],
         stripe_customer_id=row["stripe_customer_id"],
-        last_connected_at=row["last_connected_at"]
+        last_connected_at=row["last_connected_at"],
+        allow_raw_records=allow_raw
     )
 
 
@@ -131,6 +143,15 @@ async def get_account_by_id(mcp_account_id: int) -> Optional[MCPAccount]:
     row = await Database.fetchrow(query, mcp_account_id)
     if row is None:
         return None
+        
+    # Fetch permissions from public.api_keys
+    perm_query = """
+        SELECT bool_or(allow_raw_records) as allow_raw
+        FROM public.api_keys 
+        WHERE client_email = $1 AND is_active = TRUE
+    """
+    perm_row = await Database.fetchrow(perm_query, row["user_email"])
+    allow_raw = perm_row["allow_raw"] if perm_row and perm_row["allow_raw"] is not None else False
     
     return MCPAccount(
         id=row["id"],
@@ -140,7 +161,8 @@ async def get_account_by_id(mcp_account_id: int) -> Optional[MCPAccount]:
         credits_tier=row["credits_tier"],
         is_active=row["is_active"],
         stripe_customer_id=row["stripe_customer_id"],
-        last_connected_at=row["last_connected_at"]
+        last_connected_at=row["last_connected_at"],
+        allow_raw_records=allow_raw
     )
 
 

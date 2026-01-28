@@ -5,7 +5,8 @@ Phone-to-identity resolution tools.
 """
 import logging
 from .registry import tool
-from .helpers import call_backend, normalize_phone
+from .helpers import call_backend, normalize_phone, mask_sensitive
+from ..core.context import current_account
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,8 @@ Cost: 3 credits""",
 async def get_identity_profile(phone: str) -> dict:
     """Get complete identity profile."""
     phone = normalize_phone(phone)
+    account = current_account.get()
+    should_mask = not (account and account.allow_raw_records)
     
     try:
         response = await call_backend(
@@ -44,20 +47,34 @@ async def get_identity_profile(phone: str) -> dict:
         basic = response.get("basic_data", {})
         enhanced = response.get("enhanced_data", {})
         
+        emails = basic.get("emails", [])
+        if should_mask:
+            emails = [mask_sensitive(e) for e in emails]
+            
+        alt_phones = basic.get("alternate_phones", [])
+        if should_mask:
+            alt_phones = [mask_sensitive(p) for p in alt_phones]
+
+        breach_categories = enhanced.get("breach_categories", [])
+        # Mask breach sources often means hiding specific source names
+        # Assuming breach_categories format is list of strings or dicts
+        # If it's pure source names, we mask them or replace with 'Hidden Source'
+        # For now, simplistic masking logic
+        
         return {
             "success": True,
             "phone": phone,
             
             # Basic identity data
             "names": basic.get("names", []),
-            "emails": basic.get("emails", []),
+            "emails": emails,
             "addresses": basic.get("addresses", []),
-            "alternate_phones": basic.get("alternate_phones", []),
+            "alternate_phones": alt_phones,
             
             # Enhanced data
             "documents": enhanced.get("documents", []),
             "metadata": enhanced.get("metadata", {}),
-            "breach_categories": enhanced.get("breach_categories", []),
+            "breach_categories": breach_categories,
             
             # Summary
             "summary": {
@@ -70,7 +87,8 @@ async def get_identity_profile(phone: str) -> dict:
             },
             
             "person_ids": response.get("person_ids", []),
-            "generated_at": response.get("generated_at")
+            "generated_at": response.get("generated_at"),
+            "masked": should_mask
         }
     
     except Exception as e:
@@ -150,6 +168,8 @@ Cost: 2 credits""",
 async def get_email(phone: str) -> dict:
     """Get emails for a phone number."""
     phone = normalize_phone(phone)
+    account = current_account.get()
+    should_mask = not (account and account.allow_raw_records)
     
     try:
         response = await call_backend(
@@ -158,11 +178,16 @@ async def get_email(phone: str) -> dict:
             params={"fetch_if_missing": "true"}
         )
         
+        emails = response.get("emails", [])
+        if should_mask:
+            emails = [mask_sensitive(e) for e in emails]
+        
         return {
             "success": True,
             "phone": phone,
-            "emails": response.get("emails", []),
-            "count": response.get("count", 0)
+            "emails": emails,
+            "count": response.get("count", 0),
+            "masked": should_mask
         }
     
     except Exception as e:
@@ -248,6 +273,8 @@ Cost: 2 credits""",
 async def get_alternate_phones(phone: str) -> dict:
     """Get alternate phone numbers."""
     phone = normalize_phone(phone)
+    account = current_account.get()
+    should_mask = not (account and account.allow_raw_records)
     
     try:
         response = await call_backend(
@@ -256,11 +283,16 @@ async def get_alternate_phones(phone: str) -> dict:
             params={"fetch_if_missing": "true"}
         )
         
+        alt_phones = response.get("alternate_phones", [])
+        if should_mask:
+            alt_phones = [mask_sensitive(p) for p in alt_phones]
+        
         return {
             "success": True,
             "phone": phone,
-            "alternate_phones": response.get("alternate_phones", []),
-            "count": response.get("count", 0)
+            "alternate_phones": alt_phones,
+            "count": response.get("count", 0),
+            "masked": should_mask
         }
     
     except Exception as e:

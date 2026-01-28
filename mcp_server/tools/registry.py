@@ -154,11 +154,27 @@ async def execute_tool(
     
     start_time = time.time()
     
+    token = None
     try:
+        # Set context if account_id provided
+        if account_id:
+            from .core.auth import get_account_by_id
+            from .core.context import current_account
+            
+            account = await get_account_by_id(account_id)
+            if account:
+                token = current_account.set(account)
+
         result = await tool_def.handler(**arguments)
         execution_time = (time.time() - start_time) * 1000
         return result, execution_time
+        
     except Exception as e:
         execution_time = (time.time() - start_time) * 1000
         logger.error(f"Tool {name} failed: {e}")
         raise
+        
+    finally:
+        # Reset context
+        if token:
+            current_account.reset(token)
