@@ -23,7 +23,8 @@ from mcp.types import Tool, TextContent
 
 from .core.config import get_settings
 from .core.database import Database
-from .core.auth import validate_api_key, AuthError
+from .core.auth import validate_api_key, AuthError, MCPAccount
+from .routes.user_routes import get_current_user, get_mcp_account_by_email
 from .mcp_server import OutrisMCPServer
 from .tools.registry import ToolRegistry, execute_tool, get_tool
 from .core.credits import (
@@ -329,47 +330,64 @@ async def streamable_http_transport(
                     }
                 })
 
-            # Validate API key from header
+
+            # Validate API key from header — return HTTP 401 to trigger OAuth flow
             if not authorization:
                 logger.warning(f"[HTTP] Unauthorized tools/call attempt (no auth)")
-                return JSONResponse({
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "error": {
-                        "code": 401,
-                        "message": "Unauthorized",
-                        "data": "Authorization header required (Bearer <api_key>)"
-                    }
-                })
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "Authorization header required"},
+                    headers={"WWW-Authenticate": "Bearer"}
+                )
 
-            # Parse Bearer token
             if not authorization.startswith("Bearer "):
-                return JSONResponse({
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "error": {
-                        "code": 401,
-                        "message": "Unauthorized",
-                        "data": "Invalid Authorization header format"
-                    }
-                })
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "Invalid Authorization header format"},
+                    headers={"WWW-Authenticate": "Bearer"}
+                )
 
-            api_key = authorization.replace("Bearer ", "")
+            auth_token = authorization.replace("Bearer ", "")
+            account = None
 
-            # Validate and get account
+            # Try to validate as JWT (OAuth) first, then as API Key
             try:
-                account = await validate_api_key(api_key)
-            except AuthError as e:
-                logger.warning(f"[HTTP] Auth error: {e}")
-                return JSONResponse({
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "error": {
-                        "code": 401,
-                        "message": "Unauthorized",
-                        "data": str(e)
-                    }
-                })
+                if auth_token.startswith("ey"):
+                    # Validate as JWT
+                    user_info = await get_current_user(authorization)  # Pass full header
+                    account_data = await get_mcp_account_by_email(user_info["email"])
+                    
+                    if not account_data:
+                        raise AuthError("No MCP account found for this user", "no_account")
+                        
+                    # Convert dict to MCPAccount object
+                    # Ensure we handle all fields correctly, using defaults for optionals
+                    account = MCPAccount(
+                        id=account_data["id"],
+                        user_email=account_data["user_email"],
+                        display_name=account_data.get("display_name"),
+                        credits_balance=account_data["credits_balance"],
+                        credits_tier=account_data["credits_tier"],
+                        is_active=account_data["is_active"],
+                        stripe_customer_id=account_data.get("stripe_customer_id"),
+                        last_connected_at=account_data.get("last_connected_at")
+                    )
+                else:
+                    # Validate as MCP API Key
+                    account = await validate_api_key(auth_token)
+
+            except Exception as e:
+                # Catch both AuthError and HTTPException from get_current_user
+                error_msg = str(e)
+                if hasattr(e, "detail"):
+                    error_msg = str(e.detail)
+                    
+                logger.warning(f"[HTTP] Auth error: {error_msg}")
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": error_msg},
+                    headers={"WWW-Authenticate": "Bearer"}
+                )
             
             logger.info(f"[HTTP] Authenticated as: {account.user_email}")
 
