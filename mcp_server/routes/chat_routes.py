@@ -117,16 +117,16 @@ If the user asks about a phone number or identity, USE THE TOOLS to get real dat
             account_id = mcp_acct["id"] if mcp_acct else None
 
             for block in response.content:
-                    if block.type == "tool_use":
-                        tool_name = block.name
-                        tool_input = block.input
-                        tool_use_id = block.id
-                        
-                        logger.info(f"Executing tool: {tool_name} with input: {tool_input}")
-                        
-                        try:
-                            # Execute the tool LOCALLY using Registry, passing account_id for context/permissions
-                            result, _ = await execute_tool(tool_name, tool_input, account_id=account_id)
+                if block.type == "tool_use":
+                    tool_name = block.name
+                    tool_input = block.input
+                    tool_use_id = block.id
+                    
+                    logger.info(f"Executing tool: {tool_name} with input: {tool_input}")
+                    
+                    try:
+                        # Execute the tool LOCALLY using Registry, passing account_id for context/permissions
+                        result, _ = await execute_tool(tool_name, tool_input, account_id=account_id)
                         
                         # Calculate credits (from Registry definition)
                         tool_def = ToolRegistry.get(tool_name)
