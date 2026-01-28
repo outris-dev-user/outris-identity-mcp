@@ -258,7 +258,16 @@ async def streamable_http_transport(
                 "result": {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {
-                        "tools": {}
+                        "tools": {
+                            "listChanged": True
+                        },
+                        "resources": {
+                            "listChanged": False
+                        },
+                        "prompts": {
+                            "listChanged": False
+                        },
+                        "logging": {}
                     },
                     "serverInfo": {
                         "name": "outris-mcp-server",
