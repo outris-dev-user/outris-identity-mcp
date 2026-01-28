@@ -109,14 +109,14 @@ If the user asks about a phone number or identity, USE THE TOOLS to get real dat
             # Process each tool use block
             tool_results = []
             
-                # Need to fetch account ID for tool context (permissions)
-                mcp_acct = await Database.fetchrow(
-                    "SELECT id FROM mcp.user_accounts WHERE user_email = $1", 
-                    user_email
-                )
-                account_id = mcp_acct["id"] if mcp_acct else None
+            # Need to fetch account ID for tool context (permissions)
+            mcp_acct = await Database.fetchrow(
+                "SELECT id FROM mcp.user_accounts WHERE user_email = $1", 
+                user_email
+            )
+            account_id = mcp_acct["id"] if mcp_acct else None
 
-                for block in response.content:
+            for block in response.content:
                     if block.type == "tool_use":
                         tool_name = block.name
                         tool_input = block.input
