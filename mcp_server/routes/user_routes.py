@@ -62,9 +62,32 @@ async def get_current_user(authorization: str = None) -> dict:
         }
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError as e:
         logger.warning(f"Invalid JWT token: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+def create_jwt_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """
+    Create a new JWT token.
+    Uses the same secret as the auth validation.
+    """
+    import jwt
+    
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+        
+    to_encode.update({"exp": expire})
+    
+    settings = get_settings()
+    if not settings.jwt_secret_key:
+        logger.error("JWT_SECRET_KEY not configured")
+        raise RuntimeError("JWT secret not configured")
+        
+    encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm="HS256")
+    return encoded_jwt
 
 
 def get_auth_header(request: Request) -> str:
