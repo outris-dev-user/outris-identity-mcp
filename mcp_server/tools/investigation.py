@@ -83,9 +83,9 @@ async def get_identity_profile(phone: str) -> dict:
             "phone": phone,
             
             # Basic identity data
-            "names": basic.get("names", []),
+            "names": names,
             "emails": emails,
-            "addresses": basic.get("addresses", []),
+            "addresses": addresses,
             "alternate_phones": alt_phones,
             
             # Enhanced data
