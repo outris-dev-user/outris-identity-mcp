@@ -64,6 +64,7 @@ def get_anthropic_tools():
 
 async def run_agentic_loop(
     user_message: str,
+    user_email: str,
     api_key: str = None, # Not used for local execution but kept for signature compat
     max_iterations: int = 5
 ) -> tuple[str, List[str], int]:
@@ -108,17 +109,24 @@ If the user asks about a phone number or identity, USE THE TOOLS to get real dat
             # Process each tool use block
             tool_results = []
             
-            for block in response.content:
-                if block.type == "tool_use":
-                    tool_name = block.name
-                    tool_input = block.input
-                    tool_use_id = block.id
-                    
-                    logger.info(f"Executing tool: {tool_name} with input: {tool_input}")
-                    
-                    try:
-                        # Execute the tool LOCALLY using Registry
-                        result, _ = await execute_tool(tool_name, tool_input)
+                # Need to fetch account ID for tool context (permissions)
+                mcp_acct = await Database.fetchrow(
+                    "SELECT id FROM mcp.user_accounts WHERE user_email = $1", 
+                    user_email
+                )
+                account_id = mcp_acct["id"] if mcp_acct else None
+
+                for block in response.content:
+                    if block.type == "tool_use":
+                        tool_name = block.name
+                        tool_input = block.input
+                        tool_use_id = block.id
+                        
+                        logger.info(f"Executing tool: {tool_name} with input: {tool_input}")
+                        
+                        try:
+                            # Execute the tool LOCALLY using Registry, passing account_id for context/permissions
+                            result, _ = await execute_tool(tool_name, tool_input, account_id=account_id)
                         
                         # Calculate credits (from Registry definition)
                         tool_def = ToolRegistry.get(tool_name)
@@ -241,7 +249,8 @@ async def chat(request: Request, body: ChatRequest):
     try:
         # Run the agentic loop
         response_text, tools_used, credits_used = await run_agentic_loop(
-            user_message=body.message
+            user_message=body.message,
+            user_email=user["email"]
         )
         
         # Deduct credits

@@ -55,6 +55,23 @@ async def get_identity_profile(phone: str) -> dict:
         if should_mask:
             alt_phones = [mask_sensitive(p) for p in alt_phones]
 
+        # NEW: Mask names and addresses as well if requested
+        names = basic.get("names", [])
+        if should_mask:
+            names = [mask_sensitive(n) for n in names]
+
+        addresses = basic.get("addresses", [])
+        if should_mask:
+            masked_addresses = []
+            for addr in addresses:
+                if isinstance(addr, str):
+                    masked_addresses.append(mask_sensitive(addr))
+                elif isinstance(addr, dict):
+                    if "full_address" in addr:
+                        addr["full_address"] = mask_sensitive(addr["full_address"])
+                    masked_addresses.append(addr)
+            addresses = masked_addresses
+
         breach_categories = enhanced.get("breach_categories", [])
         # Mask breach sources often means hiding specific source names
         # Assuming breach_categories format is list of strings or dicts
@@ -130,10 +147,14 @@ async def get_name(phone: str) -> dict:
             params={"fetch_if_missing": "true"}
         )
         
+        names = response.get("names", [])
+        if should_mask:
+            names = [mask_sensitive(n) for n in names]
+            
         return {
             "success": True,
             "phone": phone,
-            "names": response.get("names", []),
+            "names": names,
             "count": response.get("count", 0)
         }
     
@@ -221,6 +242,8 @@ Cost: 2 credits""",
 async def get_address(phone: str) -> dict:
     """Get addresses for a phone number."""
     phone = normalize_phone(phone)
+    account = current_account.get()
+    should_mask = not (account and account.allow_raw_records)
     
     try:
         response = await call_backend(
@@ -229,11 +252,29 @@ async def get_address(phone: str) -> dict:
             params={"fetch_if_missing": "true"}
         )
         
+        addresses = response.get("addresses", [])
+        # Mask address fields while keeping structure
+        if should_mask:
+            masked_addresses = []
+            for addr in addresses:
+                # Assuming addr is a dict or string. Mask sensitive parts.
+                if isinstance(addr, str):
+                    masked_addresses.append(mask_sensitive(addr))
+                elif isinstance(addr, dict):
+                    # Mask everything except maybe country/state?
+                    # For safety, mask full address string if present
+                    if "full_address" in addr:
+                        addr["full_address"] = mask_sensitive(addr["full_address"])
+                    # If just fields, maybe tricky. Let's rely on masking string representation
+                    masked_addresses.append(addr)
+            addresses = masked_addresses
+
         return {
             "success": True,
             "phone": phone,
-            "addresses": response.get("addresses", []),
-            "count": response.get("count", 0)
+            "addresses": addresses,
+            "count": response.get("count", 0),
+            "masked": should_mask
         }
     
     except Exception as e:
