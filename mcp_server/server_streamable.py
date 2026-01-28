@@ -54,7 +54,7 @@ settings = get_settings()
 if settings.enable_kyc_tools:
     from .tools import kyc
 from .tools import platforms, commerce, investigation
-from .routes import public_router, user_router, admin_router, chat_router, demo_router
+from .routes import public_router, user_router, admin_router, chat_router, demo_router, oauth_router
 
 
 @asynccontextmanager
@@ -95,6 +95,7 @@ app.include_router(user_router)
 app.include_router(admin_router)
 app.include_router(chat_router)
 app.include_router(demo_router)
+app.include_router(oauth_router)
 
 
 # ============================================================================
