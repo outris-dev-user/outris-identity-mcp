@@ -69,13 +69,14 @@ async def oauth_discovery():
     """
     settings = get_settings()
     dashboard_url = settings.dashboard_url
-    api_base_url = settings.api_base_url
-    
+    # Token endpoint MUST be on the same origin as the MCP server
+    mcp_base_url = settings.mcp_base_url
+
     return {
-        "issuer": api_base_url,
+        "issuer": mcp_base_url,
         "authorization_endpoint": f"{dashboard_url}/oauth/authorize",
-        "token_endpoint": f"{api_base_url}/api/oauth/token",
-        "token_endpoint_auth_methods_supported": ["client_secret_post", "none"], # 'none' for PKCE public clients
+        "token_endpoint": f"{mcp_base_url}/api/oauth/token",
+        "token_endpoint_auth_methods_supported": ["none"],
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code"],
         "code_challenge_methods_supported": ["S256"],
@@ -89,11 +90,11 @@ async def protected_resource_metadata():
     OAuth Protected Resource Metadata.
     """
     settings = get_settings()
-    api_base_url = settings.api_base_url
-    
+    mcp_base_url = settings.mcp_base_url
+
     return {
-        "resource": api_base_url,
-        "authorization_servers": [api_base_url], # We are our own auth server
+        "resource": mcp_base_url,
+        "authorization_servers": [mcp_base_url],
         "scopes_supported": ["mcp"],
         "bearer_methods_supported": ["header"],
         "resource_documentation": "https://portal.outris.com/mcp"

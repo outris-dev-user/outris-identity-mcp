@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     # URLs
     dashboard_url: str = "https://portal.outris.com"
     api_base_url: str = Field(default="https://rail.outris.com", validation_alias="BACKEND_API_URL")
+    mcp_base_url: str = "https://mcp-server.outris.com"
     
     # JWT Authentication (shared with main backend)
     jwt_secret_key: str = ""
