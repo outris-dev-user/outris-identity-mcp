@@ -174,6 +174,7 @@ async def streamable_http_discovery():
     }
 
 
+@app.post("/")
 @app.post("/http")
 async def streamable_http_transport(
     request: Request,
