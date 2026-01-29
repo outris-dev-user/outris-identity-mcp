@@ -102,54 +102,70 @@ def normalize_phone(phone: str) -> str:
 
 def mask_sensitive(value: str, visible_chars: int = 4) -> str:
     """
-    Smart masking for sensitive data.
+    Smart masking for sensitive data that PRESERVES LENGTH.
     
     Strategies:
-    - Email (>7 chars): sa***ab***i@gmail.com (First 2, Middle 2, Last 1)
-    - Email (short): j***n@gmail.com
-    - Phone: 91***5***7890 (First 2, Middle 1, Last 4)
-    - Regular String: Sau...thi (First 3...Last 3)
+    - Email (>7 chars local): sa***ab***i@gmail.com (First 2, Middle 2, Last 1 kept)
+    - Phone (>=10 digits): 91***5***7890 (First 2, Middle 1, Last 4 kept)
+    - General (>8 chars): Sau...thi (First 3, Last 3 kept)
+    - General (short): J**n (First 1, Last 1 kept)
     """
     if not value:
         return value
         
     value = str(value).strip()
+    length = len(value)
     
+    # Helper to mask string while keeping specific indices
+    def apply_mask(text: str, keep_indices: set) -> str:
+        return "".join([c if i in keep_indices else "*" for i, c in enumerate(text)])
+
     # Email Masking
     if "@" in value and "." in value:
         try:
             local, domain = value.split("@", 1)
-            if len(local) > 7:
-                # Long email: Show First 2, Middle 2, Last 1
-                mid = len(local) // 2
-                masked_local = f"{local[:2]}***{local[mid-1:mid+1]}***{local[-1]}"
-            elif len(local) > 2:
-                # Short email: Keep first and last
-                masked_local = f"{local[0]}***{local[-1]}"
+            local_len = len(local)
+            
+            if local_len > 7:
+                # Keep First 2, Middle 2, Last 1
+                mid = local_len // 2
+                indices = {0, 1, mid-1, mid, local_len-1}
+                masked_local = apply_mask(local, indices)
+            elif local_len > 2:
+                # Keep First 1, Last 1
+                indices = {0, local_len-1}
+                masked_local = apply_mask(local, indices)
             else:
-                masked_local = local[0] + "***" 
+                # Keep First 1
+                masked_local = local[0] + "*" * (local_len - 1)
+                
             return f"{masked_local}@{domain}"
         except:
             pass # Fallback
             
     # Phone Masking (numeric check)
-    if value.replace("+", "").isdigit() and len(value) >= 10:
-        # Show First 2...Middle 1...Last 4
-        # e.g., 919876543210 -> 91***5***3210
-        mid = len(value) // 2
-        return f"{value[:2]}***{value[mid]}***{value[-4:]}"
-        
-    # Short strings
-    if len(value) <= 4:
-        return value[0] + "*" * (len(value)-1)
+    if value.replace("+", "").isdigit() and length >= 10:
+        # Keep First 2, Middle 1, Last 4
+        mid = length // 2
+        indices = {0, 1, mid}
+        # Add last 4 indices
+        for i in range(length - 4, length):
+            indices.add(i)
+            
+        return apply_mask(value, indices)
         
     # General String (Names/Addresses)
-    if len(value) > 8:
-        # Keep first 3 and last 3
-        return f"{value[:3]}...{value[-3:]}"
+    if length > 8:
+        # Keep First 3, Last 3
+        indices = {0, 1, 2, length-3, length-2, length-1}
+        return apply_mask(value, indices)
+    elif length > 2:
+        # Keep First 1, Last 1
+        indices = {0, length-1}
+        return apply_mask(value, indices)
     else:
-        # Keep first 1 and last 1
-        return f"{value[0]}***{value[-1]}"
+        # Keep First 1
+        return value[0] + "*" * (length - 1)
 
 
 def summarize_response(response: dict, max_items: int = 5) -> dict:
