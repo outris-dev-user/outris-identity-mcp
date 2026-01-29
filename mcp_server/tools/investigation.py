@@ -139,6 +139,8 @@ Cost: 2 credits""",
 async def get_name(phone: str) -> dict:
     """Get names for a phone number."""
     phone = normalize_phone(phone)
+    account = current_account.get()
+    should_mask = not (account and account.allow_raw_records)
     
     try:
         response = await call_backend(

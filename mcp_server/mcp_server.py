@@ -52,7 +52,7 @@ if settings.enable_kyc_tools:
 else:
     logger.info("KYC tools disabled")
 
-from .tools import platforms, commerce, investigation
+from .tools import platforms, commerce, investigation, breach
 
 
 class OutrisMCPServer:
