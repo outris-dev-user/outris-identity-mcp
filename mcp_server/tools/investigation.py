@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 @tool(
     name="get_identity_profile",
     description="""
-**What it does:** Comprehensive identity report. Fetches names, emails, addresses, metadata, and risk scores in one go.
+**What it does:** Comprehensive identity report. Fetches names, emails, addresses, metadata, and risk scores in one go .
 **Input:** Phone number.
 **Returns:** Complete JSON profile containing all linked entities.
-**Best for:** Deep investigations where you need the "full picture" immediately.
+**Best for:** Deep investigations where you need the "full picture" immediately. Understand if similar names, addresses appear, then that gives more confidence
 
 Cost: 3 credits""",
     credits=3,
