@@ -101,10 +101,55 @@ def normalize_phone(phone: str) -> str:
 
 
 def mask_sensitive(value: str, visible_chars: int = 4) -> str:
-    """Mask sensitive data, showing only last N characters."""
-    if not value or len(value) <= visible_chars:
+    """
+    Smart masking for sensitive data.
+    
+    Strategies:
+    - Email (>7 chars): sa***ab***i@gmail.com (First 2, Middle 2, Last 1)
+    - Email (short): j***n@gmail.com
+    - Phone: 91***5***7890 (First 2, Middle 1, Last 4)
+    - Regular String: Sau...thi (First 3...Last 3)
+    """
+    if not value:
         return value
-    return "*" * (len(value) - visible_chars) + value[-visible_chars:]
+        
+    value = str(value).strip()
+    
+    # Email Masking
+    if "@" in value and "." in value:
+        try:
+            local, domain = value.split("@", 1)
+            if len(local) > 7:
+                # Long email: Show First 2, Middle 2, Last 1
+                mid = len(local) // 2
+                masked_local = f"{local[:2]}***{local[mid-1:mid+1]}***{local[-1]}"
+            elif len(local) > 2:
+                # Short email: Keep first and last
+                masked_local = f"{local[0]}***{local[-1]}"
+            else:
+                masked_local = local[0] + "***" 
+            return f"{masked_local}@{domain}"
+        except:
+            pass # Fallback
+            
+    # Phone Masking (numeric check)
+    if value.replace("+", "").isdigit() and len(value) >= 10:
+        # Show First 2...Middle 1...Last 4
+        # e.g., 919876543210 -> 91***5***3210
+        mid = len(value) // 2
+        return f"{value[:2]}***{value[mid]}***{value[-4:]}"
+        
+    # Short strings
+    if len(value) <= 4:
+        return value[0] + "*" * (len(value)-1)
+        
+    # General String (Names/Addresses)
+    if len(value) > 8:
+        # Keep first 3 and last 3
+        return f"{value[:3]}...{value[-3:]}"
+    else:
+        # Keep first 1 and last 1
+        return f"{value[0]}***{value[-1]}"
 
 
 def summarize_response(response: dict, max_items: int = 5) -> dict:
